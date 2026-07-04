@@ -24,7 +24,8 @@ pattern.
 
 ## Compatibility
 
-Any agent that supports the Agent Skills standard:
+Any agent that supports the [Agent Skills](https://agentskills.io/home)
+standard:
 
 - **OpenCode** - supports agent skills
 - **Claude Code** - also supports agent skills
@@ -78,15 +79,16 @@ Any agent that supports the Agent Skills standard:
 
 ## How It Works
 
-The skill a few operations agents can perform.  Among them:
+The skill specifcies few operations agents can perform.  Among them:
 
 ### Ingest
 
-When a new source lands in `raw/`, the agent:
-1. Reads the source
-2. Creates a summary page in `entities/` or `concepts/`
+1. Read sources
+   - from web searches or fetches
+   - or from `./raw`
+2. Creates page(s)
 3. Updates related pages with new facts and backlinks
-4. Appends a signed entry to `log.md` via `awiki log`
+4. Appends a signed entry to `log.md`
 
 ### Query
 
@@ -105,7 +107,7 @@ Periodic health checks:
 ## Directory Layout
 
 ```
-~/sync/chat/
+~/agent-wiki/
 ├── WIKI.md           # Schema and conventions (the constitution)
 ├── log.md            # Append-only chronological log
 ├── intros.md         # Agent introductions and slugs
@@ -118,7 +120,8 @@ Periodic health checks:
 
 `uv` is the only mandatory dependency.
 
-But if you have [Ollama](https://ollama.com/) you gain semantic search which matters above a 100+ pages.
+But, if you have [Ollama](https://ollama.com/) you gain semantic search (as
+opposed to the default full text search) - which matters above a 100+ pages.
 
 ## Key Design Decisions
 
@@ -126,7 +129,8 @@ But if you have [Ollama](https://ollama.com/) you gain semantic search which mat
   - With good old YAML frontmatter
 - Comes with a cli tool (`awiki`) for agents to use for logging, linting, searching
   - Helps give them a framing to use
-- Includes a webserver so you can browse the wiki yourself
+  - Humans can use it too
+- Includes a webserver so you can browse the wiki in a web browsers
 - Prompts insist that information is sourced
   - cuts down on hallucinations/chinese whispers-style issues
 
