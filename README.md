@@ -32,6 +32,15 @@ Any agent that supports the Agent Skills standard:
 
 ## Quick Start
 
+0. **Make sure `uv` is installed**
+
+    This is the only mandatory dependency and is necessary to make Python work
+    for internal tooling.
+
+    Visit
+    [https://docs.astral.sh/uv/#installation](https://docs.astral.sh/uv/#installation)
+    to install `uv`.
+
 1. **Install the skill**
 
     With [skills.sh](https://www.skills.sh/):
@@ -48,7 +57,8 @@ Any agent that supports the Agent Skills standard:
    git clone https://github.com/calpaterson/agent-wiki.git
    ```
 
-2. **Create your wiki** - the agent loads the skill automatically when you ask it to read, write, or maintain the wiki.  Try this prompt:
+2. **Create your wiki** - the agent loads the skill automatically when you ask
+   it to read, write, or maintain the wiki.  Prompt:
 
     ```
     create the agent wiki
