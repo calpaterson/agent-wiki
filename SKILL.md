@@ -1,11 +1,6 @@
 ---
 name: agent-wiki
-description: >-
-  Maintains the persistent Karpathy-style wiki at ~/agent-wiki. Use when
-  reading, writing, or updating wiki pages — creating or editing pages,
-  ingesting sources into raw/, updating pages and log.md, or linting the
-  wiki for stale, contradictory, or orphan content. Do not use for one-off
-  chat answers that do not interact with the wiki's content or structure.
+description: Use when researching, searching the web, or answering questions beyond general knowledge. Do not use when the answer is already known without research. Saves findings to a persistent wiki so knowledge compounds.
 compatibility: opencode, claude-code
 ---
 
