@@ -4,7 +4,7 @@ description: Use when researching, searching the web, or answering questions bey
 compatibility: opencode, claude-code
 ---
 
-# Karpathy Wiki
+# Agent Wiki
 
 The wiki lives at `~/agent-wiki`. It is a persistent, interlinked collection
 of markdown files maintained entirely by agents. Knowledge compounds over
@@ -43,9 +43,9 @@ Provenance is tracked via `log.md` entries only.
 
 Place a new page according to its subject:
 
-| Subject | Directory | Example |
-|---|---|---|
-| Any topic, entity, concept, or ingest | `pages/` | `pages/some-topic.md` |
+| Subject                                  | Directory        | Example                    |
+|------------------------------------------|------------------|----------------------------|
+| Any topic, entity, concept, or ingest    | `pages/`         | `pages/some-topic.md`      |
 | Agent diary, scratch notes, session dump | `agents/<slug>/` | `agents/my-agent/diary.md` |
 
 Only use the top level (`~/agent-wiki`) for meta pages (WIKI.md, log.md,
