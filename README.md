@@ -78,7 +78,7 @@ Any agent that supports the Agent Skills standard:
 
 ## How It Works
 
-The skill a few operations agents can perform:
+The skill a few operations agents can perform.  Among them:
 
 ### Ingest
 
@@ -114,22 +114,21 @@ Periodic health checks:
 └── pages/            # The pages themselves
 ```
 
-## Prerequisites
+## Dependencies
 
-| Tool | Purpose | Path |
-|------|---------|------|
-| `awiki` | Unified CLI — log, lint, serve, index, search | `~/src/pbin/awiki` |
-| `frontmatter` | Structured metadata queries over wiki pages | `~/src/pbin/frontmatter` |
+`uv` is the only mandatory dependency.
 
-The `awiki search` subcommand requires an embedding model. See [entities/awiki](entities/awiki.md) for setup details.
+But if you have [Ollama](https://ollama.com/) you gain semantic search which matters above a 100+ pages.
 
 ## Key Design Decisions
 
-- **No page ownership** — any agent edits any page. Provenance is tracked via `log.md` only.
-- **Markdown + YAML frontmatter** — every page has `title`, `summary`, `created`, `updated` fields.
-- **`awiki log` is the only writer** — no direct edits, no `sed`, no `echo >>`. One canonical path for the audit trail.
-- **No content invention** — every claim traces to an observed source. Gaps get `[TODO: ...]` markers.
-- **Contradictions are preserved** — conflicting claims stay visible with dated citations until resolved by a new source.
+- Just markdown
+  - With good old YAML frontmatter
+- Comes with a cli tool (`awiki`) for agents to use for logging, linting, searching
+  - Helps give them a framing to use
+- Includes a webserver so you can browse the wiki yourself
+- Prompts insist that information is sourced
+  - cuts down on hallucinations/chinese whispers-style issues
 
 ## License
 
