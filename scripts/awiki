@@ -1,0 +1,538 @@
+#!/usr/bin/env -S uv run --script
+# -*- mode: python -*-
+# /// script
+# requires-python = "~=3.14"
+# dependencies = ["click~=8.3.0", "flask~=3.1", "markdown~=3.7", "ollama~=0.6", "pysqlite3-binary~=0.5", "pyyaml~=6.0.3", "sqlite-vec~=0.1.9", "waitress~=3.0"]
+# ///
+
+from datetime import date
+import fcntl
+from pathlib import Path
+import re
+import pysqlite3 as sqlite3
+import sys
+import webbrowser
+from typing import Optional
+
+import click
+import ollama
+import sqlite_vec
+import yaml
+from flask import Flask, abort, render_template_string, send_from_directory
+from markdown import markdown
+from waitress import serve as wsgi_serve
+
+WIKI_ROOT = Path.home() / "agent-wiki"
+LOG_PATH = WIKI_ROOT / "log.md"
+
+CONTENT_DIRS = ["pages"]
+META_PAGES = ["WIKI.md", "intros.md"]
+WIKILINK_RE = re.compile(r"\[\[(.+?)\]\]")
+MDLINK_RE = re.compile(r"\[([^\]]*)\]\(([^)]*)\)")
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+MD_LINK_RE = re.compile(r'href="([^"]+?)\.md(#?)"')
+
+HERE = Path(__file__).parent
+_TEMPLATES_DIR = HERE / "awiki-templates"
+_TEMPLATE_FILE = _TEMPLATES_DIR / "base.html"
+
+TEMPLATE = _TEMPLATE_FILE.read_text("utf-8")
+DB_PATH = Path.home() / ".cache" / "awiki.db"
+LOCK_PATH = DB_PATH.with_suffix(".lock")
+_SCHEMA_FILE = _TEMPLATES_DIR / "schema.sql"
+EMBED_MODEL = "nomic-embed-text"
+SEARCH_DISTANCE = 0.7
+
+
+def _collect_wiki_files(root: Path) -> list[Path]:
+    files: list[Path] = []
+    for d in CONTENT_DIRS:
+        dp = root / d
+        if dp.is_dir():
+            for f in sorted(dp.rglob("*.md")):
+                name = f.name
+                if name.startswith("#") or name.endswith("#") or name.endswith("~"):
+                    continue
+                files.append(f)
+    for name in META_PAGES:
+        p = root / name
+        if p.is_file():
+            files.append(p)
+    return files
+
+
+def _skip_code(line: str) -> str:
+    return re.sub(r"`[^`]*`", "", line)
+
+
+def _is_fence(line: str) -> bool:
+    return line.startswith("```")
+
+
+
+def _resolve_mdlink(url: str, root: Path) -> Optional[Path]:
+    if url.startswith(("http://", "https://", "#")):
+        return None
+    path_part = url.split("#")[0]
+    if path_part.endswith("/"):
+        return None
+    ext = Path(path_part).suffix
+    if ext and ext != ".md":
+        return None
+    if not ext:
+        path_part += ".md"
+    resolved = root / path_part
+    return resolved if resolved.exists() else None
+
+
+def _parse_frontmatter(text: str) -> tuple[Optional[dict[str, object]], bool]:
+    if not text.startswith("---\n"):
+        return None, False
+    end = text.find("\n---\n", 4)
+    if end == -1:
+        return None, True
+    block = text[4:end]
+    try:
+        result = yaml.safe_load(block)
+    except yaml.YAMLError:
+        return None, True
+    if result is None:
+        return {}, True
+    if not isinstance(result, dict):
+        return {}, True
+    return result, True
+
+
+def _catalog_pages(
+    root: Path,
+    section: str | None = None,
+    sort: str = "path",
+) -> list[dict[str, object]]:
+    """Return structured catalog of all wiki pages with frontmatter metadata."""
+    files = _collect_wiki_files(root)
+    pages: list[dict[str, object]] = []
+    for f in files:
+        rel = f.relative_to(root)
+        text = f.read_text("utf-8")
+        fm, _has_fm = _parse_frontmatter(text)
+        fm_dict = fm if isinstance(fm, dict) else {}
+
+        if section and rel.parts[0] != section:
+            continue
+
+        pages.append({
+            "path": str(rel.with_suffix("")),
+            "title": fm_dict.get("title", ""),
+            "summary": fm_dict.get("summary", ""),
+            "created": fm_dict.get("created", ""),
+            "updated": fm_dict.get("updated", ""),
+        })
+
+    if sort == "path":
+        pages.sort(key=lambda p: str(p["path"]))
+    elif sort == "title":
+        pages.sort(key=lambda p: str(p["title"]).lower())
+    elif sort == "created":
+        pages.sort(key=lambda p: str(p["created"]), reverse=True)
+    elif sort == "updated":
+        pages.sort(key=lambda p: str(p["updated"]), reverse=True)
+
+    return pages
+
+
+def _catalog_markdown(pages: list[dict[str, object]]) -> str:
+    """Render catalog as a flat markdown table."""
+    out: list[str] = ["| Page | Summary |", "|------|---------|"]
+    for p in pages:
+        summary = str(p.get("summary") or "—")
+        if len(summary) > 120:
+            summary = summary[:117] + "..."
+        out.append(f"| [{p['path']}]({p['path']}) | {summary} |")
+    return "\n".join(out)
+
+
+def check_wikilinks(files: list[Path], root: Path) -> list[str]:
+    issues: list[str] = []
+    for f in files:
+        text = f.read_text("utf-8")
+        lines = text.split("\n")
+        in_fence = False
+        for i, raw_line in enumerate(lines, 1):
+            stripped = raw_line.strip()
+            if _is_fence(stripped):
+                in_fence = not in_fence
+                continue
+            if in_fence:
+                continue
+            cleaned = _skip_code(raw_line)
+            for m in WIKILINK_RE.finditer(cleaned):
+                target = m.group(1)
+                rel = f.relative_to(root)
+                issues.append(f"{rel}:{i}: [[{target}]] — use markdown links")
+    return issues
+
+
+
+def check_frontmatter(files: list[Path], root: Path) -> list[str]:
+    issues: list[str] = []
+    for f in files:
+        text = f.read_text("utf-8")
+        fm, has_markers = _parse_frontmatter(text)
+        rel = f.relative_to(root)
+        if fm is None:
+            if has_markers:
+                issues.append(f"{rel}:1: frontmatter: invalid YAML")
+            else:
+                issues.append(f"{rel}:1: frontmatter: missing YAML frontmatter")
+            continue
+        for field in ("title", "summary", "created", "updated"):
+            if field not in fm:
+                issues.append(f"{rel}:1: frontmatter: missing '{field}'")
+        summary = fm.get("summary")
+        if isinstance(summary, str) and len(summary) > 160:
+            issues.append(
+                f"{rel}:1: frontmatter: summary too long "
+                f"({len(summary)} chars, max 160)"
+            )
+        created = fm.get("created")
+        if isinstance(created, str) and not DATE_RE.match(created):
+            issues.append(
+                f"{rel}:1: frontmatter: 'created' is not a valid date "
+                f"(expected YYYY-MM-DD)"
+            )
+        updated = fm.get("updated")
+        if isinstance(updated, str) and not DATE_RE.match(updated):
+            issues.append(
+                f"{rel}:1: frontmatter: 'updated' is not a valid date "
+                f"(expected YYYY-MM-DD)"
+            )
+    return issues
+
+
+
+def _create_app(root: Path) -> Flask:
+    """Create the Flask application for serving the wiki."""
+
+    def render_page(path: str) -> str | None:
+        """Render a markdown file as HTML."""
+        f = root / path
+        if not f.exists() or not f.is_file():
+            return None
+        text = f.read_text("utf-8")
+        body = text
+        fm = None
+        if text.startswith("---\n"):
+            end = text.find("\n---\n", 4)
+            if end != -1:
+                block = text[4:end]
+                try:
+                    fm = yaml.safe_load(block)
+                except yaml.YAMLError:
+                    fm = None
+                if not isinstance(fm, dict):
+                    fm = None
+                body = text[end + 5:]
+        html = markdown(body, extensions=["fenced_code", "tables"])
+        html = MD_LINK_RE.sub(r'href="/\1\2"', html)
+        title = (fm or {}).get("title", f.stem)
+        return render_template_string(TEMPLATE, content=html, fm=fm, title=title)
+
+    def dir_listing(path: str) -> str | None:
+        """Show a directory listing of markdown files."""
+        d = root / path
+        if not d.is_dir():
+            return None
+        pages = _catalog_pages(root, section=path.strip("/"))
+        title = f"Index of /{path}"
+        listing = "<ul>" + "".join(
+            f'<li><a href="/{p["path"]}">'
+            f'{p["path"].split("/", 1)[-1]}</a>'
+            + (f' — {p["summary"]}' if p["summary"] else "")
+            + "</li>"
+            for p in pages
+        ) + "</ul>"
+        return render_template_string(TEMPLATE, content=listing, fm=None, title=title)
+
+    app = Flask(__name__)
+
+    @app.route("/")
+    def index():
+        pages = _catalog_pages(root)
+        md = _catalog_markdown(pages)
+        html = markdown(md, extensions=["fenced_code", "tables"])
+        return render_template_string(TEMPLATE, content=html, fm=None, title="Catalog")
+
+    @app.route("/<path:segments>")
+    def page(segments):
+        requested = (root / segments).resolve()
+        if not str(requested).startswith(str(root.resolve())):
+            abort(404)
+
+        result = render_page(f"{segments}.md") if "." not in segments else None
+        if result:
+            return result
+
+        f = root / segments
+        if f.is_file():
+            return send_from_directory(root, segments)
+
+        result = dir_listing(segments)
+        if result:
+            return result
+
+        abort(404)
+
+    return app
+
+
+def _init_db() -> sqlite3.Connection:
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    db = sqlite3.connect(str(DB_PATH))
+    db.enable_load_extension(True)
+    sqlite_vec.load(db)
+    db.enable_load_extension(False)
+    schema = _SCHEMA_FILE.read_text("utf-8")
+    db.executescript(schema)
+    return db
+
+
+def _embed(texts: list[str]) -> list[list[float]]:
+    return ollama.embed(model=EMBED_MODEL, input=texts, truncate=True)["embeddings"]
+
+
+def _index_wiki(root: Path) -> tuple[int, int]:
+    lock_fd = LOCK_PATH.open("w")
+    fcntl.flock(lock_fd, fcntl.LOCK_EX)
+    try:
+        db = _init_db()
+
+        wiki_files = _collect_wiki_files(root)
+        disk: dict[str, float] = {}
+        for f in wiki_files:
+            rel = str(f.relative_to(root))
+            disk[rel] = f.stat().st_mtime
+
+        cur = db.execute("SELECT path, mtime, vec_rowid FROM wiki_meta")
+        indexed: dict[str, tuple[float, int | None]] = {}
+        for row in cur.fetchall():
+            indexed[row[0]] = (row[1], row[2])
+
+        removed = 0
+        for path in list(indexed):
+            if path not in disk:
+                old_rid = indexed[path][1]
+                if old_rid:
+                    db.execute("DELETE FROM wiki_vec WHERE rowid = ?", (old_rid,))
+                db.execute("DELETE FROM wiki_meta WHERE path = ?", (path,))
+                removed += 1
+
+        to_index: list[str] = []
+        for rel, mtime in disk.items():
+            entry = indexed.get(rel)
+            if entry is None or mtime > entry[0]:
+                to_index.append(rel)
+
+        indexed_count = 0
+        if to_index:
+            for rel in to_index:
+                raw = (root / rel).read_text("utf-8")
+                body = raw
+                summary = ""
+                if raw.startswith("---\n"):
+                    end = raw.find("\n---\n", 4)
+                    if end != -1:
+                        try:
+                            fm = yaml.safe_load(raw[4:end])
+                            if isinstance(fm, dict):
+                                summary = fm.get("summary", "")
+                        except yaml.YAMLError:
+                            pass
+                        body = raw[end + 5:]
+
+                [embedding] = _embed([f"search_document: {body}"])
+
+                old_rid = indexed.get(rel, (None, None))[1]
+                if old_rid:
+                    db.execute("DELETE FROM wiki_vec WHERE rowid = ?", (old_rid,))
+
+                blob = sqlite_vec.serialize_float32(embedding)
+                cur = db.execute(
+                    "INSERT INTO wiki_vec(rowid, embedding) VALUES (NULL, ?)", (blob,)
+                )
+                new_rid = cur.lastrowid
+
+                db.execute(
+                    "INSERT INTO wiki_meta (path, mtime, summary, vec_rowid) VALUES (?, ?, ?, ?) "
+                    "ON CONFLICT(path) DO UPDATE SET "
+                    "mtime=excluded.mtime, summary=excluded.summary, vec_rowid=excluded.vec_rowid",
+                    (rel, disk[rel], summary, new_rid),
+                )
+                indexed_count += 1
+
+        db.commit()
+        db.close()
+        return indexed_count, removed
+    finally:
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        lock_fd.close()
+
+
+def _search(root: Path, query: str) -> list[tuple[str, str]]:
+    _index_wiki(root)
+    db = _init_db()
+
+    qvec = _embed([f"search_query: {query}"])[0]
+    blob = sqlite_vec.serialize_float32(qvec)
+
+    cur = db.execute(
+        "SELECT m.path, m.summary "
+        "FROM wiki_vec v "
+        "JOIN wiki_meta m ON v.rowid = m.vec_rowid "
+        "WHERE v.embedding MATCH ? "
+        "  AND k = 20 "
+        "  AND v.distance < ? "
+        "ORDER BY v.distance",
+        (blob, SEARCH_DISTANCE),
+    )
+    results = list(cur.fetchall())
+    db.close()
+    return results
+
+
+@click.group()
+def cli():
+    """Agent wiki CLI tool."""
+
+
+@cli.command()
+def lint():
+    """Scan the wiki for issues."""
+    root = WIKI_ROOT
+    if not root.is_dir():
+        click.echo(f"error: wiki directory not found at {root}", err=True)
+        sys.exit(1)
+
+    files = _collect_wiki_files(root)
+
+    wikilink_issues = check_wikilinks(files, root)
+    frontmatter_issues = check_frontmatter(files, root)
+
+    if not (wikilink_issues or frontmatter_issues):
+        click.echo("No issues found.")
+        return
+
+    for issue in wikilink_issues:
+        click.echo(issue)
+    for issue in frontmatter_issues:
+        click.echo(issue)
+
+    parts = []
+    if wikilink_issues:
+        parts.append(f"{len(wikilink_issues)} wikilinks")
+    if frontmatter_issues:
+        parts.append(f"{len(frontmatter_issues)} frontmatter issues")
+    click.echo(f"Found {', '.join(parts)}", err=True)
+    sys.exit(1)
+
+
+@cli.command()
+@click.option("--port", default=6211, help="Port to bind to", type=int)
+@click.option("--open", "open_browser", is_flag=True, help="Open in browser")
+def serve(port: int, open_browser: bool) -> None:
+    """Start the wiki web server."""
+    root = WIKI_ROOT
+    if not root.is_dir():
+        click.echo(f"error: wiki directory not found at {root}", err=True)
+        sys.exit(1)
+
+    app = _create_app(root)
+    if open_browser:
+        webbrowser.open(f"http://127.0.0.1:{port}")
+    click.echo(f"Serving wiki at http://127.0.0.1:{port}")
+    wsgi_serve(app, host="127.0.0.1", port=port)
+
+
+@cli.command()
+def index() -> None:
+    """Build or update the embedding index."""
+    root = WIKI_ROOT
+    if not root.is_dir():
+        click.echo(f"error: wiki directory not found at {root}", err=True)
+        sys.exit(1)
+
+    n, removed = _index_wiki(root)
+    if n == 0 and removed == 0:
+        click.echo("All files up to date.", err=True)
+    else:
+        parts = []
+        if n:
+            parts.append(f"Indexed {n} files")
+        if removed:
+            parts.append(f"Removed {removed} stale entries")
+        click.echo(f"{', '.join(parts)}.", err=True)
+
+
+@cli.command()
+@click.argument("query")
+def search(query: str) -> None:
+    """Search the wiki by semantic similarity."""
+    root = WIKI_ROOT
+    if not root.is_dir():
+        click.echo(f"error: wiki directory not found at {root}", err=True)
+        sys.exit(1)
+
+    results = _search(root, query)
+    if not results:
+        click.echo("No matching results found.")
+        return
+    for path, summary in results:
+        click.echo(f"{path}: {summary}" if summary else path)
+
+
+@cli.command()
+@click.argument("title")
+@click.option("--slug", default="opencode", help="Signing slug from intros.md")
+@click.option("--dry-run", is_flag=True, help="Print entry to stdout instead of writing")
+def log(title: str, slug: str, dry_run: bool) -> None:
+    """Append an entry to the agent wiki log."""
+    body = sys.stdin.read().strip()
+    entry = f"\n## [{date.today().isoformat()}] {title}\n\n{body}\n\n--{slug}\n"
+
+    if dry_run:
+        click.echo(entry, nl=False)
+        return
+
+    with LOG_PATH.open("a") as f:
+        f.write(entry)
+
+    click.echo("Appended to the log.")
+
+
+@cli.command()
+@click.option("--sort", "sort_by", type=click.Choice(["path", "title", "created", "updated"]),
+              default="path", help="Sort order (default: path)")
+@click.option("--json", "as_json", is_flag=True, help="Output as JSON array")
+def catalog(sort_by: str, as_json: bool) -> None:
+    """List all wiki pages with frontmatter metadata."""
+    root = WIKI_ROOT
+    if not root.is_dir():
+        click.echo(f"error: wiki directory not found at {root}", err=True)
+        sys.exit(1)
+
+    pages = _catalog_pages(root, sort=sort_by)
+
+    if as_json:
+        import json
+        click.echo(json.dumps(pages, indent=2, default=str))
+        return
+
+    if not pages:
+        click.echo("No pages found.")
+        return
+
+    click.echo(_catalog_markdown(pages))
+
+
+
+if __name__ == "__main__":
+    cli()
