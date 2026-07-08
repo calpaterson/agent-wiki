@@ -8,3 +8,5 @@ CREATE TABLE IF NOT EXISTS wiki_meta (
 CREATE VIRTUAL TABLE IF NOT EXISTS wiki_vec USING vec0(
     embedding float[768] distance_metric=cosine
 );
+
+CREATE VIRTUAL TABLE IF NOT EXISTS wiki_fts USING fts5(path, body, tokenize='porter');

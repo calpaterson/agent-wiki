@@ -42,6 +42,7 @@ LOCK_PATH = DB_PATH.with_suffix(".lock")
 _SCHEMA_FILE = _TEMPLATES_DIR / "schema.sql"
 EMBED_MODEL = "nomic-embed-text"
 SEARCH_DISTANCE = 0.7
+_OLLAMA_FAILED = False
 
 
 def _collect_wiki_files(root: Path) -> list[Path]:
@@ -296,8 +297,16 @@ def _init_db() -> sqlite3.Connection:
     return db
 
 
-def _embed(texts: list[str]) -> list[list[float]]:
-    return ollama.embed(model=EMBED_MODEL, input=texts, truncate=True)["embeddings"]
+def _embed(texts: list[str]) -> list[list[float]] | None:
+    """Returns the embedding, or None if Ollama was not available"""
+    global _OLLAMA_FAILED
+    if _OLLAMA_FAILED:
+        return None
+    try:
+        return ollama.embed(model=EMBED_MODEL, input=texts, truncate=True)["embeddings"]
+    except Exception:
+        _OLLAMA_FAILED = True
+        return Non
 
 
 def _index_wiki(root: Path) -> tuple[int, int]:
@@ -323,6 +332,7 @@ def _index_wiki(root: Path) -> tuple[int, int]:
                 old_rid = indexed[path][1]
                 if old_rid:
                     db.execute("DELETE FROM wiki_vec WHERE rowid = ?", (old_rid,))
+                db.execute("DELETE FROM wiki_fts WHERE path = ?", (path,))
                 db.execute("DELETE FROM wiki_meta WHERE path = ?", (path,))
                 removed += 1
 
@@ -349,17 +359,22 @@ def _index_wiki(root: Path) -> tuple[int, int]:
                             pass
                         body = raw[end + 5:]
 
-                [embedding] = _embed([f"search_document: {body}"])
+                db.execute("DELETE FROM wiki_fts WHERE path = ?", (rel,))
+                db.execute("INSERT INTO wiki_fts(path, body) VALUES (?, ?)", (rel, body))
 
                 old_rid = indexed.get(rel, (None, None))[1]
                 if old_rid:
                     db.execute("DELETE FROM wiki_vec WHERE rowid = ?", (old_rid,))
 
-                blob = sqlite_vec.serialize_float32(embedding)
-                cur = db.execute(
-                    "INSERT INTO wiki_vec(rowid, embedding) VALUES (NULL, ?)", (blob,)
-                )
-                new_rid = cur.lastrowid
+                new_rid = None
+                result = _embed([f"search_document: {body}"])
+                if result is not None:
+                    [embedding] = result
+                    blob = sqlite_vec.serialize_float32(embedding)
+                    cur = db.execute(
+                        "INSERT INTO wiki_vec(rowid, embedding) VALUES (NULL, ?)", (blob,)
+                    )
+                    new_rid = cur.lastrowid
 
                 db.execute(
                     "INSERT INTO wiki_meta (path, mtime, summary, vec_rowid) VALUES (?, ?, ?, ?) "
@@ -381,20 +396,49 @@ def _search(root: Path, query: str) -> list[tuple[str, str]]:
     _index_wiki(root)
     db = _init_db()
 
-    qvec = _embed([f"search_query: {query}"])[0]
-    blob = sqlite_vec.serialize_float32(qvec)
+    result = _embed([f"search_query: {query}"])
+    if result is not None:
+        qvec = result[0]
+        blob = sqlite_vec.serialize_float32(qvec)
 
-    cur = db.execute(
-        "SELECT m.path, m.summary "
-        "FROM wiki_vec v "
-        "JOIN wiki_meta m ON v.rowid = m.vec_rowid "
-        "WHERE v.embedding MATCH ? "
-        "  AND k = 20 "
-        "  AND v.distance < ? "
-        "ORDER BY v.distance",
-        (blob, SEARCH_DISTANCE),
-    )
-    results = list(cur.fetchall())
+        cur = db.execute(
+            "SELECT m.path, m.summary "
+            "FROM wiki_vec v "
+            "JOIN wiki_meta m ON v.rowid = m.vec_rowid "
+            "WHERE v.embedding MATCH ? "
+            "  AND k = 20 "
+            "  AND v.distance < ? "
+            "ORDER BY v.distance",
+            (blob, SEARCH_DISTANCE),
+        )
+        results = cur.fetchall()
+        if results:
+            db.close()
+            return results
+
+    try:
+        cur = db.execute(
+            "SELECT m.path, m.summary "
+            "FROM wiki_meta m "
+            "JOIN wiki_fts ON m.path = wiki_fts.path "
+            "WHERE wiki_fts MATCH ? "
+            "ORDER BY rank "
+            "LIMIT 20",
+            (query,),
+        )
+        results = cur.fetchall()
+    except sqlite3.OperationalError:
+        click.echo(
+            "FTS5 query syntax error.\n"
+            "\n"
+            "SQLite FTS5 full-text search syntax:\n"
+            '  plain words (implicit AND):  survival horror\n'
+            "  prefix query:                 quant*\n"
+            '  phrase query:                 "carbon steel"',
+            err=True,
+        )
+        sys.exit(1)
+
     db.close()
     return results
 
