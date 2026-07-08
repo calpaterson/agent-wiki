@@ -4,231 +4,278 @@ description: Use when researching, searching the web, or answering questions bey
 compatibility: opencode, claude-code
 ---
 
-# Agent Wiki
+# The Agent Wiki
 
-The wiki lives at `~/agent-wiki`. It is a persistent, interlinked collection
-of markdown files maintained entirely by agents. Knowledge compounds over
-time — every ingest or answer enriches the existing pages instead of being
-re-derived from scratch.
+## Introduction
 
-The canonical schema reference is `~/agent-wiki/WIKI.md`. Read it alongside
-this skill for full detail. This file covers the workflow conventions.
+The Agent Wiki is a persistent, shared, interlinked collection of markdown
+documents maintained by AI agents.
 
-## Step 1: Determine your slug
+The aim is for agent knowledge to compound over time.  Research continually
+enriches the shared wiki rather than each session needlessly re-deriving things
+from scratch.
 
-Read `~/agent-wiki/intros.md`. Find your entry. The slug is shown in
-parentheses next to each agent name (e.g. `my-agent`, `opencode`,
-`cal`). Use this slug as your identity in all `--slug` signatures below.
+## Indicative structure
 
-If your slug is not listed, add yourself to `intros.md` first.
+- `WIKI.md` - local convention document
+- `log.md` - changelog
+- `intros.md` - agent introductions
+- `pages/` - directory holding the pages themselves
+    - `epicurean-philosophy.md` - page about ancient guys who liked to eat
+    - `helmet-library-system.md` - page on how to search for library books in Helsinki
+    - `motorsport-news-feeds.md` - preferred news sources about motorsport
+    - `survival-horror-canon.md` - resident evil type games
+    - `woks.md` - investigation into getting carbon steel wok
+    - `[...]
+- `raw/` - raw data, your imports, never edited by the agents
+    - `claude-export.zip` - historical claude conversations
+    - `hetzner.csv` - some import from a cloud provider
+    - `dmesg-2026-06-03-output.txt` - some log output you copied in one time
 
 ## Conventions
 
+### Quality standards
+
+*Cite every claim*.  Every factual claim in a wiki page must trace to an observable source.  No unattributed assertions.
+
+*Label unsupported content*.  Use confidence markers when a claim falls short of the cite-everything bar:
+
+- `[INFERRED: <reasoning>]` - a deduction or interpretation, not a retrieved fact
+- `[UNCONFIRMED: <source>]` - a single source claims something but this could not be corroborated
+- `[UNKNOWN: <topic>]` - genuinely unknown, no source was found
+
+*Verify before citing*.  Before citing a source, check that it actually says what you are claiming it does.  A citation that looks relevant but which does not support the claim is worse than no citation as it creates false confidence.
+
+*Distinguish the relative strength of claims*.  When presenting your findings, separate:
+
+- Established fact (multiple different sources, no serious dispute)
+- Common practice/knowledge (widely thought or done but not formally documented)
+- Rank speculation (plausible but without evidence)
+
+*Flag weak sources*.  Note well in the wiki if the evidence is:
+
+- A single source - just one someone claiming something
+-  Stale - older than current (for whatever current is within that specific field)
+- Low-authority - a personal blog, social media, unknown origin
+
+Weak sources are useful and should not be discarded.  They just need to be appropriately marked.
+
+*Surface all disagreement*.  When sources conflict, present both arguments and log the contention.  Do not silently select one or tother.
+
+*Say when it is unknown, or when you don't know*.  If a solid answer cannot be found, simply say so and explain why that might be.  An honest gap is to be **strongly** preferred to a confident but wrong answer.  Mark as `[UNKNOWN: ...]` and move forward.
+
 ### No ownership
 
-Any agent may create or edit any page. No page belongs to anyone.
-Provenance is tracked via `log.md` entries only.
+Any agents may create or edit any page.  Pages are not owned by specific
+agents.
 
-### Directory layout and placement heuristics
-
-```
-~/agent-wiki
-├── WIKI.md        # Schema
-├── log.md         # Append-only log
-├── intros.md      # Agent introductions
-├── raw/           # Immutable source documents
-├── agents/        # Per-agent scratch dirs (slug-named)
-└── pages/         # All content pages
-```
-
-Place a new page according to its subject:
-
-| Subject                                  | Directory        | Example                    |
-|------------------------------------------|------------------|----------------------------|
-| Any topic, entity, concept, or ingest    | `pages/`         | `pages/some-topic.md`      |
-| Agent diary, scratch notes, session dump | `agents/<slug>/` | `agents/my-agent/diary.md` |
-
-Only use the top level (`~/agent-wiki`) for meta pages (WIKI.md, log.md,
-intros.md). If you are unsure, put the page in `pages/`.
+Provenance is tracked via `log.md`.
 
 ### Sign all changes
 
-Every creation or significant edit MUST append an entry to `log.md` and
-sign it with `--your-slug` at the end of the entry.
+Each page creation or significant edit MUST have an accompanying log entry.
 
-**`awiki log` is the ONLY way to append to `log.md`.** Do not edit
-`log.md` directly, do not `write` it, do not `sed` it, do not `echo >>` it.
-Only `awiki log` may write to this file. Usage:
+`awiki log` MUST be used to do this - do not edit the log file directly.
+
+Example usage:
 
 ```bash
-echo "body content" | ./scripts/awiki log "title" --slug <slug>
+echo "<log entry text>" | ./scripts/awiki log "title" --slug <agent_slug>
 ```
 
-Preview without writing using the `--dry-run` flag. The `awiki` tool is
-included in this repo under `scripts/awiki`.
+Each agent will be identified by a agent slug such as `code-planner`,
+`researcher`, `copyeditor`, etc.
 
-### Naming
+Check `intros.md` to discover your slug.  If it is missing select a slug and
+add it to that file.
+
+### General Page Structure
+
+#### YAML frontmatter
+
+Each page in the wiki should begin with the following YAML frontmatter keys:
+
+- `title`
+- `summary`
+  - A short summary of the contents of the page.  160 characters max.
+- `created`
+  - an iso date
+- `updated`
+  - an iso date
+
+For example
+
+```yaml
+---
+title: Michael Crichton
+summary: American author (1942–2008), master of the techno-thriller — reading guide and book rankings
+created: 2026-07-01
+updated: 2026-07-01
+---
+
+# Michael Crichton
+
+[...]
+
+```
+
+#### Body
+
+After the frontmatter, structure the page as follows:
+
+1. Opening.  A short paragraph summarising the topic
+2. Sections.  Organised under "##" headings and each covering a distinct aspect.
+3. Connections.  `## Connections` - referencing other, related wiki pages.
+4. Sources.  `## Sources` - at bottom of the page, list where the information came from via hyperlinks, eg:
+   - [page](pages/page-name.md)
+   - [raw/source-file.etc](raw/source-file.etc)
+
+### File naming
 
 Lowercase with hyphens: `my-notes.md`, not `MyNotes.md`.
 
-### Cross-references (links)
+### Cross-references (hyperlinks)
 
-Use `[text](path/to/page.md)` for cross-references. Maintain backlinks when
-updating pages: if you create `pages/some-topic.md`, add a
-`[pages/some-topic](pages/some-topic.md)` link from any page that
-mentions it.
+Use internal markdown links (`[text](pages/some-page.md)`) for
+cross-references.  Maintain back-links when updating pages.  If you create
+`pages/some-topic.md`, add a `[pages/some-topic](pages/some-topic.md)` link
+from any page that mentions it.
 
-### No content invention
+### Local overrides
 
-Every claim must trace to something actually observed or documented. Gaps
-get `[TODO: ...]` markers, not hallucinated filler.
+Commit local alterations (or additions) to these rules into `WIKI.md` and
+accord that file a higher precedence over this skill file when working with
+the wiki.
 
-## Operation: Ingest
+## Operations
 
-Use when a new source file appears in `raw/` (article, transcript, notes).
-Perform these steps in order:
+### Ingestion
 
-### Step 1: Read the source
+Used for ingesting documents, for example from `./raw`.
 
-Read the file in `raw/`. If the file is empty or unreadable, log a brief
-entry to `log.md` and stop.
+#### Step 1: Read the source
 
-### Step 2: Create or update a wiki page
+Read the file directly.  If it is empty or unreadable, do not continue further
+but noisily exit.
 
-Write a summary page in the appropriate directory (see placement heuristics
-above). Structure it as follows:
+#### Step 2: Create or update a wiki page(s)
 
-```markdown
-# Title of the Page
+Write wiki page(s) based on the new material.  Follow the General Page Structure above.
 
-One-paragraph summary of what the source is about.
+#### Step 3: Update related pages
 
-## Key points
-
-- Point one, with citation to the source
-- Point two, with citation
-- Point three
-
-## Connections
-
-- [related-page](related-page.md) — what the connection is
-- [other-related-page](other-related-page.md) — what the connection is
-
-## Source
-
-Derived from [raw/source-filename](raw/source-filename.md).
-```
-
-### Step 3: Update related pages
-
-If the new source adds information about entities or concepts that already
-have pages, update those pages. Add new facts, flag contradictions, and
-update backlinks.
+If the source provided information about entities or concepts that already have
+pages, update those pages. Add new facts, flag contradictions, and update
+back-links.
 
 If you find a contradiction, do not silently overwrite. Preserve both
 claims in the page and add a note in the log entry, for example:
 
-> Claim A (from [raw/source-a](raw/source-a.md)) says X. Claim B (from [raw/source-b](raw/source-b.md))
-> says Y. This has not been resolved.
+> Claim A (from [raw/source-a](raw/source-a.md)) says X. Claim B (from
+> [raw/source-b](raw/source-b.md)) says Y. This has not been resolved.
 
-### Step 4: Append to `log.md`
+### Step 4: Append to the log
 
-Use **`awiki log`** (the ONLY way to append). Pipe the body via
-stdin:
+Use `awiki log` as described above.
 
-```bash
-echo "Created [path/to/page](path/to/page.md). Updated [pages/related-page](pages/related-page.md) with new
-details about Z." | ./scripts/awiki log "ingest | Title-of-Source" --slug <slug>
-```
+### Research
 
-The tool handles the date stamp, section header, and signing format
-automatically. See the "Sign all changes" section for usage details
-and the `--dry-run` flag for previewing.
+#### Step 1: Survey the wiki
 
-### Step 5: Verify signing
-
-`awiki log` already appends `--slug` at the end of every entry, so
-step 5 is automatic. No manual signing needed.
-
-## Operation: Query
-
-Use when asked a question that the wiki may answer.
-
-### Step 1: Survey
-
-Search the wiki semantically with `awiki search` first. This finds pages
-by meaning, not just keyword matching — far more effective than scanning
-summaries for relevant content:
+Search the wiki semantically via `awiki search` first.  This finds pages by
+meaning, not just by keyword match, and is far more effective than scanning
+summaries for relevant content or just grepping the wiki.
 
 ```bash
 # Search for pages by topic
-./scripts/awiki search "web rendering techniques"
+./scripts/awiki search "science fiction"
 ./scripts/awiki search "editor configuration"
 ./scripts/awiki search "backup strategy"
 ```
 
-Output shows the file path and a one-line summary with relevance ranking.
-Read specific pages in Step 2 after you've identified the right ones.
+There is also `awiki catalog` if necessary, but it's a blunter tool.
 
-**Fallback: `awiki catalog`** — If `awiki search` returns nothing useful,
-try broader queries or use `awiki catalog` to list pages by metadata.
+#### Step 2: Read
 
-**Advanced: `awiki catalog`** — For structured metadata queries (e.g.,
-"which pages are missing summaries?" or "list all pages created before a
-date"), use `awiki catalog`:
+Read all collected material.
 
-```bash
-# List all pages with JSON output
-./scripts/awiki catalog --json
+#### Step 3: Assess - and widen the survey if needed
 
-# Sort by most recently updated
-./scripts/awiki catalog --sort updated
+Check what you have against these criteria:
+
+1. Can you cite a good source for each claim
+2. Have you checked at least two independent sources for the core topic?
+3. If sources disagree, have you noted the dispute rather than silently picked one?
+
+Consider the general Quality Standards above.
+
+If not, widen the survey:
+
+- Follow sources referred to in the wiki
+- Perform general web searches
+- Consult any specifically relevant resources you know of
+- Use any other information sources available to you
+- Re-search the wiki with any new terminology you've discovered
+
+Then go back to step 2.
+
+If after a few rounds of widening you still can't pass the checklist, mark the
+remaining gaps (eg with `[UNKNOWN]` or `[UNCONFIRMED]`) and move on.  It's
+better to answer partially than loop forever.
+
+#### Step 4: Synthesise
+
+When writing to the user directly (as opposed to saving to the agent wiki), use the following output template:
+
+```
+<Subject>
+---------
+
+Sources consulted
+=================
+
+- agent wiki [pages/foo](pages/foo.md), [pages/bar](pages/bar.md)
+- web: [title](url)
+- other: [description](url) - as applies
+
+Key findings
+============
+
+- Finding 1, with attribution
+- Finding 2, with attribution
+- ...
+
+Contradictions and uncertainties
+================================
+
+- Point 1, with a brief explanation
+- Point 2, again with a brief explanation
+- [...]
+
+Conclusions
+===========
+
+Here, explain:
+
+- What can be said confidently
+- What needs further investigation
+- What remains [UNKNOWN:...]
 ```
 
-**TL;DR:** Use `awiki search` first. Fall back to `awiki catalog` only when
-search doesn't give you what you need.
+#### Step 5: File back
 
-### Step 2: Read
+If the synthesis adds something new to the wiki, file it back.
 
-Read the relevant pages. Follow cross-reference links to related pages as needed.
+Follow the General Page Structure above.
 
-### Step 3: Synthesize
+Record to the log with `awiki log` as described above.
 
-Answer with citations to specific wiki pages. Use the format:
-"As [pages/some-topic](pages/some-topic.md) notes, ..."
+### Linting
 
-### Step 4: File back (optional)
+#### Step 1: Run the linter
 
-If the answer synthesizes information in a way that is worth preserving,
-create a new wiki page for it and add it to `log.md`. Good candidates:
-comparisons, timelines, analyses, resolved contradictions.
+Run `awiki lint` to detect issues.
 
-## Operation: Lint
+#### Step 2: Correct the issues
 
-Run `awiki lint` first to automatically detect issues. It checks for broken
-wikilinks, orphan pages, and missing frontmatter. Then manually review the
-items below for what `awiki lint` doesn't cover, fixing each issue and logging
-changes to `log.md`.
-
-1. **Orphan pages** — pages with no inbound links from any other page.
-   Add backlinks from relevant pages. If a page cannot be linked to anything,
-   consider whether it should be deleted.
-
-2. **Contradictions** — scan pages for unresolved
-   `[TODO: resolve contradiction]` markers or conflicting claims from
-   different sources. Leave both claims visible with dated source
-   citations. Do not delete either without a new source that resolves it.
-
-3. **Stale claims** — pages where the `updated` note in `log.md` is more
-   than 3 months old. Re-read the page. If claims are likely stale, add a
-   `[TODO: verify currency]` marker.
-
-## Error handling
-
-| Situation | Action |
-|---|---|
-| Page already exists for this topic | Update it. Do not duplicate. |
-| Source file is empty or unreadable | Log a one-line entry to `log.md` and skip. |
-| Contradiction with an existing page | Preserve both claims. Note in log entry. |
-| Slug not found in `intros.md` | Ask the human for your slug. Do not guess. |
-| Unsure where to place a page | Default to `pages/`. Never put it in the top level. |
+Fix whatever issues are resolved.  Confer with the user if there is any ambiguity.
