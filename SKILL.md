@@ -1,7 +1,6 @@
 ---
 name: agent-wiki
 description: Use when researching, searching the web, or answering questions beyond general knowledge. Do not use when the answer is already known without research. Saves findings to a persistent wiki so knowledge compounds.
-compatibility: opencode, claude-code
 ---
 
 # The Agent Wiki
