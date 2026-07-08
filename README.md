@@ -44,19 +44,16 @@ standard:
 
 1. **Install the skill**
 
-    With [skills.sh](https://www.skills.sh/):
-
-    ```bash
-    npx skills add calpaterson/agent-skill
-    ```
-
-    Just via git:
+    Via git:
 
    ```bash
    mkdir -p ~/.agent/skills
    cd ~/.agent/skills
    git clone https://github.com/calpaterson/agent-wiki.git
    ```
+
+   **Don't** use tools like Vercel's `skills.sh` - they don't support the whole
+   skill spec and will leave you with a broken installation.
 
 2. **Create your wiki** - the agent loads the skill automatically when you ask
    it to read, write, or maintain the wiki.  Prompt:
