@@ -337,6 +337,9 @@ def _index_wiki(root: Path) -> tuple[int, int]:
                 db.execute("DELETE FROM wiki_meta WHERE path = ?", (path,))
                 removed += 1
 
+        if removed:
+            db.commit()
+
         to_index: list[str] = []
         for rel, mtime in disk.items():
             entry = indexed.get(rel)
@@ -345,7 +348,8 @@ def _index_wiki(root: Path) -> tuple[int, int]:
 
         indexed_count = 0
         if to_index:
-            for rel in tqdm(to_index, desc="Indexing", unit="files"):
+            already_done = len(disk) - len(to_index)
+            for rel in tqdm(to_index, desc="Indexing", unit="files", initial=already_done, total=len(disk)):
                 raw = (root / rel).read_text("utf-8")
                 body = raw
                 summary = ""
@@ -384,6 +388,7 @@ def _index_wiki(root: Path) -> tuple[int, int]:
                     (rel, disk[rel], summary, new_rid),
                 )
                 indexed_count += 1
+                db.commit()
 
         db.commit()
         db.close()
@@ -393,29 +398,30 @@ def _index_wiki(root: Path) -> tuple[int, int]:
         lock_fd.close()
 
 
-def _search(root: Path, query: str) -> list[tuple[str, str]]:
+def _search(root: Path, query: str, fts_only: bool = False) -> list[tuple[str, str]]:
     _index_wiki(root)
     db = _init_db()
 
-    result = _embed([f"search_query: {query}"])
-    if result is not None:
-        qvec = result[0]
-        blob = sqlite_vec.serialize_float32(qvec)
+    if not fts_only:
+        result = _embed([f"search_query: {query}"])
+        if result is not None:
+            qvec = result[0]
+            blob = sqlite_vec.serialize_float32(qvec)
 
-        cur = db.execute(
-            "SELECT m.path, m.summary "
-            "FROM wiki_vec v "
-            "JOIN wiki_meta m ON v.rowid = m.vec_rowid "
-            "WHERE v.embedding MATCH ? "
-            "  AND k = 20 "
-            "  AND v.distance < ? "
-            "ORDER BY v.distance",
-            (blob, SEARCH_DISTANCE),
-        )
-        results = cur.fetchall()
-        if results:
-            db.close()
-            return results
+            cur = db.execute(
+                "SELECT m.path, m.summary "
+                "FROM wiki_vec v "
+                "JOIN wiki_meta m ON v.rowid = m.vec_rowid "
+                "WHERE v.embedding MATCH ? "
+                "  AND k = 20 "
+                "  AND v.distance < ? "
+                "ORDER BY v.distance",
+                (blob, SEARCH_DISTANCE),
+            )
+            results = cur.fetchall()
+            if results:
+                db.close()
+                return results
 
     try:
         cur = db.execute(
@@ -521,14 +527,15 @@ def index() -> None:
 
 @cli.command()
 @click.argument("query")
-def search(query: str) -> None:
-    """Search the wiki by semantic similarity."""
+@click.option("--fts-only", is_flag=True, help="Skip semantic search, use FTS5 full-text only")
+def search(query: str, fts_only: bool) -> None:
+    """Search the wiki."""
     root = WIKI_ROOT
     if not root.is_dir():
         click.echo(f"error: wiki directory not found at {root}", err=True)
         sys.exit(1)
 
-    results = _search(root, query)
+    results = _search(root, query, fts_only=fts_only)
     if not results:
         click.echo("No matching results found.")
         return
