@@ -20,7 +20,7 @@ from scratch.
 - `WIKI.md` - local convention document
 - `log.md` - changelog
 - `intros.md` - agent introductions
-- `pages/` - directory holding the pages themslves
+- `pages/` - directory holding the pages themselves
     - `epicurean-philosophy.md` - page about ancient guys who liked to eat
     - `helmet-library-system.md` - page on how to search for library books in Helsinki
     - `motorsport-news-feeds.md` - preferred news sources about motorsport
@@ -33,6 +33,36 @@ from scratch.
     - `dmesg-2026-06-03-output.txt` - some log output you copied in one time
 
 ## Conventions
+
+### Quality standards
+
+*Cite every claim*.  Every factual claim in a wiki page must trace to an observable source.  No unattributed assertions.
+
+*Label unsupported content*.  Use confidence markers when a claim falls short of the cite-everything bar:
+
+- `[INFERRED: <reasoning>]` - a deduction or interpretation, not a retrieved fact
+- `[UNCONFIRMED: <source>]` - a single source claims something but this could not be corroborated
+- `[UNKNOWN: <topic>]` - genuinely unknown, no source was found
+
+*Verify before citing*.  Before citing a source, check that it actually says what you are claiming it does.  A citation that looks relevant but which does not support the claim is worse than no citation as it creates false confidence.
+
+*Distinguish the relative strength of claims*.  When presenting your findings, separate:
+
+- Established fact (multiple different sources, no serious dispute)
+- Common practice/knowledge (widely thought or done but not formally documented)
+- Rank speculation (plausible but without evidence)
+
+*Flag weak sources*.  Note well in the wiki if the evidence is:
+
+- A single source - just one someone claiming something
+-  Stale - older than current (for whatever current is within that specific field)
+- Low-authority - a personal blog, social media, unknown origin
+
+Weak sources are useful and should not be discarded.  They just need to be appropriately marked.
+
+*Surface all disagreement*.  When sources conflict, present both arguments and log the contention.  Do not silently select one or tother.
+
+*Say when it is unknown, or when you don't know*.  If a solid answer cannot be found, simply say so and explain why that might be.  An honest gap is to be **strongly** preferred to a confident but wrong answer.  Mark as `[UNKNOWN: ...]` and move forward.
 
 ### No ownership
 
@@ -87,6 +117,12 @@ updated: 2026-07-01
 
 ```
 
+### Output template
+
+Beyond the frontmatter, follow this output template:
+
+[...TBD...]
+
 ### File naming
 
 Lowercase with hyphens: `my-notes.md`, not `MyNotes.md`.
@@ -94,22 +130,14 @@ Lowercase with hyphens: `my-notes.md`, not `MyNotes.md`.
 ### Cross-references (hyperlinks)
 
 Use internal markdown links (`[text](pages/some-page.md)`) for
-cross-references.  Maintain backlinks when updating pages.  If you create
+cross-references.  Maintain back-links when updating pages.  If you create
 `pages/some-topic.md`, add a `[pages/some-topic](pages/some-topic.md)` link
 from any page that mentions it.
-
-### No content invention
-
-Every claim must trace to something actually observed or documented.  Cite that
-source directly (via external hyperlink, ideally).
-
-Knowledge gaps should have `[UNKNOWN: ...]` or `[UNCONFIRMED: ...]`markers
-attached, not hallucinated filler.
 
 ### Local overrides
 
 Commit local alterations (or additions) to these rules into `WIKI.md` and
-accord that file a higher precendence over this skill file when working with
+accord that file a higher precedence over this skill file when working with
 the wiki.
 
 ## Operations
@@ -125,14 +153,14 @@ but noisily exit.
 
 #### Step 2: Create or update a wiki page
 
-Write a summary page.  Include frontmatter and the the page itself in markdown
+Write a summary page.  Include front-matter and the page itself in markdown
 format.
 
 #### Step 3: Update related pages
 
 If the source provided information about entities or concepts that already have
 pages, update those pages. Add new facts, flag contradictions, and update
-backlinks.
+back-links.
 
 If you find a contradiction, do not silently overwrite. Preserve both
 claims in the page and add a note in the log entry, for example:
@@ -142,7 +170,7 @@ claims in the page and add a note in the log entry, for example:
 
 ### Step 4: Append to the log
 
-Use `awiki log` as described above`
+Use `awiki log` as described above
 
 ### Research
 
@@ -159,7 +187,7 @@ summaries for relevant content or just grepping the wiki.
 ./scripts/awiki search "backup strategy"
 ```
 
-There is also `awiki catalog` if neccessary, but it's a blunter tool.
+There is also `awiki catalog` if necessary, but it's a blunter tool.
 
 #### Step 2: Read
 
@@ -172,6 +200,8 @@ Check what you have against these criteria:
 1. Can you cite a good source for each claim
 2. Have you checked at least two independent sources for the core topic?
 3. If sources disagree, have you noted the dispute rather than silently picked one?
+
+Consider the general Quality Standards above.
 
 If not, widen the survey:
 
