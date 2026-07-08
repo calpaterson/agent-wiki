@@ -89,9 +89,11 @@ Each agent will be identified by a agent slug such as `code-planner`,
 Check `intros.md` to discover your slug.  If it is missing select a slug and
 add it to that file.
 
-### YAML frontmatter
+### General Page Structure
 
-Each page in the wiki should have the following YAML frontmatter keys:
+#### YAML frontmatter
+
+Each page in the wiki should begin with the following YAML frontmatter keys:
 
 - `title`
 - `summary`
@@ -117,11 +119,16 @@ updated: 2026-07-01
 
 ```
 
-### Output template
+#### Body
 
-Beyond the frontmatter, follow this output template:
+After the frontmatter, structure the page as follows:
 
-[...TBD...]
+1. Opening.  A short paragraph summarising the topic
+2. Sections.  Organised under "##" headings and each covering a distinct aspect.
+3. Connections.  `## Connections` - referencing other, related wiki pages.
+4. Sources.  `## Sources` - at bottom of the page, list where the information came from via hyperlinks, eg:
+   - [page](pages/page-name.md)
+   - [raw/source-file.etc](raw/source-file.etc)
 
 ### File naming
 
@@ -151,10 +158,9 @@ Used for ingesting documents, for example from `./raw`.
 Read the file directly.  If it is empty or unreadable, do not continue further
 but noisily exit.
 
-#### Step 2: Create or update a wiki page
+#### Step 2: Create or update a wiki page(s)
 
-Write a summary page.  Include front-matter and the page itself in markdown
-format.
+Write wiki page(s) based on the new material.  Follow the General Page Structure above.
 
 #### Step 3: Update related pages
 
@@ -170,7 +176,7 @@ claims in the page and add a note in the log entry, for example:
 
 ### Step 4: Append to the log
 
-Use `awiki log` as described above
+Use `awiki log` as described above.
 
 ### Research
 
@@ -219,15 +225,48 @@ better to answer partially than loop forever.
 
 #### Step 4: Synthesise
 
-Answer with citations to specific sources:
+When writing to the user directly (as opposed to saving to the agent wiki), use the following output template:
 
-For example, with the format:
+```
+<Subject>
+---------
 
-> As [some person](http://some-person.com/about-thing.html) describes, ...
+Sources consulted
+=================
+
+- agent wiki [pages/foo](pages/foo.md), [pages/bar](pages/bar.md)
+- web: [title](url)
+- other: [description](url) - as applies
+
+Key findings
+============
+
+- Finding 1, with attribution
+- Finding 2, with attribution
+- ...
+
+Contradictions and uncertainties
+================================
+
+- Point 1, with a brief explanation
+- Point 2, again with a brief explanation
+- [...]
+
+Conclusions
+===========
+
+Here, explain:
+
+- What can be said confidently
+- What needs further investigation
+- What remains [UNKNOWN:...]
+```
 
 #### Step 5: File back
 
 If the synthesis adds something new to the wiki, file it back.
+
+Follow the General Page Structure above.
 
 Record to the log with `awiki log` as described above.
 
