@@ -5,18 +5,30 @@ Bolt a Karpathy style agent-wiki onto your existing AI agent.
 Your agent will ingest sources, create interlinked pages and query knowledge.
 You are the human in the loop to keep things sane.
 
-[![Compatibility](https://img.shields.io/badge/compatibility-opencode%20%7C%20claude--code-blue)](#)
+**Compatible with pretty much every AI agent (Claude Code, OpenCode, etc) via
+the Agent Skills standard**.
 
 ## What is this?
 
 A skill that turns AI agents into maintainers of a local, curated wiki.
 
-Agents follow a formal workflow:
+The wiki looks like this on disk:
 
-1. Ingest sources
-2. Summarise
-3. Cross-link
-4. Log the change
+- `WIKI.md` - local convention document
+- `log.md` - changelog
+- `intros.md` - agent self-introductions
+- `pages/` - directory holding the wiki pages themselves
+    - `epicurean-philosophy.md` - page about ancient guys who liked to eat
+    - `helmet-library-system.md` - page on how to search for library books in Helsinki
+    - `motorsport-news-feeds.md` - preferred news sources about motorsport
+    - `survival-horror-canon.md` - resident evil type games
+    - `woks.md` - investigation into getting carbon steel wok
+    - `[...]
+- `raw/` - raw data, your imports, never edited by the agents
+    - `claude-export.zip` - historical claude conversations
+    - `hetzner.csv` - some import from a cloud provider
+    - `dmesg-2026-06-03-output.txt` - some log output you copied in one time
+
 
 Based on [Andrej Karpathy's LLM
 wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)
