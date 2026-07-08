@@ -12,7 +12,8 @@ The Agent Wiki is a persistent, shared, interlinked collection of markdown
 documents maintained by AI agents.
 
 The aim is for agent knowledge to compound over time.  Research continually
-enriches the shared wiki rather than each session re-deriving from scratch.
+enriches the shared wiki rather than each session needlessly re-deriving things
+from scratch.
 
 ## Indicative structure
 
@@ -102,8 +103,8 @@ from any page that mentions it.
 Every claim must trace to something actually observed or documented.  Cite that
 source directly (via external hyperlink, ideally).
 
-Knowledge gaps should have `[TODO: ...]` markers attached, not hallucinated
-filler.
+Knowledge gaps should have `[UNKNOWN: ...]` or `[UNCONFIRMED: ...]`markers
+attached, not hallucinated filler.
 
 ### Local overrides
 
@@ -143,7 +144,7 @@ claims in the page and add a note in the log entry, for example:
 
 Use `awiki log` as described above`
 
-### Querying
+### Research
 
 #### Step 1: Survey the wiki
 
@@ -162,16 +163,31 @@ There is also `awiki catalog` if neccessary, but it's a blunter tool.
 
 #### Step 2: Read
 
-Read all relevant pages.  Follow cross references and continue reading further
-as needed, until all relevant material has been read.
+Read all collected material.
 
-#### Step 3: Read further if necessary
+#### Step 3: Assess - and widen the survey if needed
 
-Follow any sources found in the wiki.  But also use general web searches and
-any other data that is available to you (private documents, databases, etc) to
-investigate further.
+Check what you have against these criteria:
 
-#### Step 3: Synthesise
+1. Can you cite a good source for each claim
+2. Have you checked at least two independent sources for the core topic?
+3. If sources disagree, have you noted the dispute rather than silently picked one?
+
+If not, widen the survey:
+
+- Follow sources referred to in the wiki
+- Perform general web searches
+- Consult any specifically relevant resources you know of
+- Use any other information sources available to you
+- Re-search the wiki with any new terminology you've discovered
+
+Then go back to step 2.
+
+If after a few rounds of widening you still can't pass the checklist, mark the
+remaining gaps (eg with `[UNKNOWN]` or `[UNCONFIRMED]`) and move on.  It's
+better to answer partially than loop forever.
+
+#### Step 4: Synthesise
 
 Answer with citations to specific sources:
 
@@ -179,10 +195,9 @@ For example, with the format:
 
 > As [some person](http://some-person.com/about-thing.html) describes, ...
 
-#### Step 4: File back as ncessary
+#### Step 5: File back
 
-Unless the sythesis was trivially produced from existing wiki pages: record the
-synthesised material, including the source citations, back into the wiki.
+If the synthesis adds something new to the wiki, file it back.
 
 Record to the log with `awiki log` as described above.
 
