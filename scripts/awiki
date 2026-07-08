@@ -2,7 +2,7 @@
 # -*- mode: python -*-
 # /// script
 # requires-python = "~=3.14"
-# dependencies = ["click~=8.3.0", "flask~=3.1", "markdown~=3.7", "ollama~=0.6", "pysqlite3-binary~=0.5", "pyyaml~=6.0.3", "sqlite-vec~=0.1.9", "waitress~=3.0"]
+# dependencies = ["click~=8.3.0", "flask~=3.1", "markdown~=3.7", "ollama~=0.6", "pysqlite3-binary~=0.5", "pyyaml~=6.0.3", "sqlite-vec~=0.1.9", "tqdm~=4.67", "waitress~=3.0"]
 # ///
 
 from datetime import date
@@ -17,6 +17,7 @@ from typing import Optional
 import click
 import ollama
 import sqlite_vec
+from tqdm import tqdm
 import yaml
 from flask import Flask, abort, render_template_string, send_from_directory
 from markdown import markdown
@@ -344,7 +345,7 @@ def _index_wiki(root: Path) -> tuple[int, int]:
 
         indexed_count = 0
         if to_index:
-            for rel in to_index:
+            for rel in tqdm(to_index, desc="Indexing", unit="files"):
                 raw = (root / rel).read_text("utf-8")
                 body = raw
                 summary = ""
@@ -503,6 +504,8 @@ def index() -> None:
     if not root.is_dir():
         click.echo(f"error: wiki directory not found at {root}", err=True)
         sys.exit(1)
+
+    click.echo(f"Index database: {DB_PATH}", err=True)
 
     n, removed = _index_wiki(root)
     if n == 0 and removed == 0:
