@@ -14,7 +14,7 @@ The aim is for agent knowledge to compound over time.  Research continually
 enriches the shared wiki rather than each session needlessly re-deriving things
 from scratch.
 
-## Indicative structure
+## Indicative structure ($WIKI_ROOT)
 
 - `WIKI.md` - local convention document
 - `log.md` - changelog
@@ -30,6 +30,19 @@ from scratch.
     - `claude-export.zip` - historical claude conversations
     - `hetzner.csv` - some import from a cloud provider
     - `dmesg-2026-06-03-output.txt` - some log output you copied in one time
+
+## $WIKI_ROOT vs $SKILL_ROOT
+
+The wiki content lives under `$WIKI_ROOT`, usually `~/agent-wiki`.
+
+However the skill and its associated data (including the important awiki tool)
+live under `$SKILL_ROOT`.  `$SKILL_ROOT` will often be
+`~/.agents/skills/agent-wiki` but could be stored in agent-specific directories
+such as `~/.claude/skills/agent-wiki`.
+
+The `awiki` tool lives at `$SKILL_ROOT/scripts/awiki` and NOT in the `$WIKI_ROOT`.
+
+Don't mix these up.
 
 ## Conventions
 
@@ -79,13 +92,13 @@ Each page creation or significant edit MUST have an accompanying log entry.
 Example usage:
 
 ```bash
-echo "<log entry text>" | ./scripts/awiki log "title" --slug <agent_slug>
+echo "<log entry text>" | awiki log "title" --slug <agent_slug>
 ```
 
 Each agent will be identified by a agent slug such as `code-planner`,
 `researcher`, `copyeditor`, etc.
 
-Check `intros.md` to discover your slug.  If it is missing select a slug and
+Check `~/agent-wiki/intros.md` to discover your slug.  If it is missing select a slug and
 add it to that file.
 
 ### General Page Structure
@@ -150,7 +163,7 @@ the wiki.
 
 ### Ingestion
 
-Used for ingesting documents, for example from `./raw`.
+Used for ingesting documents, for example from `~/agent-wiki/raw`.
 
 #### Step 1: Read the source
 
@@ -187,9 +200,9 @@ summaries for relevant content or just grepping the wiki.
 
 ```bash
 # Search for pages by topic
-./scripts/awiki search "science fiction"
-./scripts/awiki search "editor configuration"
-./scripts/awiki search "backup strategy"
+awiki search "science fiction"
+awiki search "editor configuration"
+awiki search "backup strategy"
 ```
 
 There is also `awiki catalog` if necessary, but it's a blunter tool.
