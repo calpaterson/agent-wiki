@@ -36,7 +36,7 @@ MDLINK_RE = re.compile(r"\[([^\]]*)\]\(([^)]*)\)")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 MD_LINK_RE = re.compile(r'href="([^"]+?)\.md(#?)"')
 
-SKILL_ROOT = Path(__file__).readlink().parent.parent
+SKILL_ROOT = Path(__file__).parent.parent
 _TEMPLATES_DIR = SKILL_ROOT / "scripts" / "awiki-templates"
 _TEMPLATE_FILE = _TEMPLATES_DIR / "base.html"
 
