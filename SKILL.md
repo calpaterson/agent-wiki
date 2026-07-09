@@ -31,6 +31,14 @@ from scratch.
     - `hetzner.csv` - some import from a cloud provider
     - `dmesg-2026-06-03-output.txt` - some log output you copied in one time
 
+To bootstrap a fresh wiki:
+
+    awiki create
+
+Pass `--wiki-root <path>` to use a location other than the default.
+Set `AGENT_WIKI_ROOT` in your shell environment for all `awiki` commands
+to find it.
+
 ## $WIKI_ROOT vs $SKILL_ROOT
 
 The wiki content lives under `$WIKI_ROOT`, usually `~/agent-wiki`.
