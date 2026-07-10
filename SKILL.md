@@ -42,15 +42,34 @@ to find it.
 ## $WIKI_ROOT vs $SKILL_ROOT
 
 The wiki content lives under `$WIKI_ROOT`, usually `~/agent-wiki`.
+Run `awiki root` to print the resolved path on your system. Do not
+resolve symlinks manually — use `$WIKI_ROOT` or the output of
+`awiki root` as-is.
 
 However the skill and its associated data (including the important awiki tool)
 live under `$SKILL_ROOT`.  `$SKILL_ROOT` will often be
 `~/.agents/skills/agent-wiki` but could be stored in agent-specific directories
 such as `~/.claude/skills/agent-wiki`.
 
-The `awiki` tool lives at `$SKILL_ROOT/scripts/awiki` and NOT in the `$WIKI_ROOT`.
+The `awiki` tool lives at `$SKILL_ROOT/scripts/awiki`.  That usually means
+`~/.agents/skills/agent-wiki/scripts/awiki`.  It does NOT live in the
+`$WIKI_ROOT`.
 
 Don't mix these up.
+
+## Tooling
+
+The `awiki` CLI lives at `$SKILL_ROOT/scripts/awiki`. Throughout this
+document `awiki` is used as shorthand — invoke it by its full path:
+
+    $SKILL_ROOT/scripts/awiki <command>
+
+To discover the wiki content root at runtime, run:
+
+    $SKILL_ROOT/scripts/awiki root
+
+This prints the `$WIKI_ROOT` path. Use this rather than guessing or
+resolving symlinks.
 
 ## Conventions
 
@@ -106,7 +125,7 @@ echo "<log entry text>" | awiki log "title" --slug <agent_slug>
 Each agent will be identified by a agent slug such as `code-planner`,
 `researcher`, `copyeditor`, etc.
 
-Check `~/agent-wiki/intros.md` to discover your slug.  If it is missing select a slug and
+Check `$WIKI_ROOT/intros.md` to discover your slug.  If it is missing select a slug and
 add it to that file.
 
 ### General Page Structure
@@ -171,7 +190,7 @@ the wiki.
 
 ### Ingestion
 
-Used for ingesting documents, for example from `~/agent-wiki/raw`.
+Used for ingesting documents, for example from `$WIKI_ROOT/raw`.
 
 #### Step 1: Read the source
 

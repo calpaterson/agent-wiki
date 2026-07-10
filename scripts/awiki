@@ -591,6 +591,12 @@ def catalog(sort_by: str, as_json: bool) -> None:
 
 
 @cli.command()
+def root():
+    """Print the resolved wiki root path."""
+    click.echo(str(WIKI_ROOT))
+
+
+@cli.command()
 @click.option("--wiki-root", default=None, help="Wiki root path (default: ~/agent-wiki)")
 def create(wiki_root: str | None) -> None:
     """Bootstrap a new agent wiki."""
@@ -604,7 +610,6 @@ def create(wiki_root: str | None) -> None:
         sys.exit(1)
 
     templates = SKILL_ROOT / "scripts"/ "awiki-templates"
-    breakpoint()
     for name in ("WIKI.md", "intros.md"):
         src = templates / name
         dst = root / name
