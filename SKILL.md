@@ -71,6 +71,44 @@ To discover the wiki content root at runtime, run:
 This prints the `$WIKI_ROOT` path. Use this rather than guessing or
 resolving symlinks.
 
+### Reading and writing wiki files
+
+If your agent harness restricts built-in file I/O tools, use `awiki read`
+and `awiki write` to work with wiki files:
+
+```bash
+# Read a wiki page with line numbers (default: max 2000 lines)
+$SKILL_ROOT/scripts/awiki read pages/some-page.md
+
+# Read a specific range of lines
+$SKILL_ROOT/scripts/awiki read pages/some-page.md --offset 10 --limit 50
+
+# Read the entire file (no line cap)
+$SKILL_ROOT/scripts/awiki read pages/some-page.md --no-limit
+
+# Read multiple files
+$SKILL_ROOT/scripts/awiki read pages/page1.md pages/page2.md
+
+# Read a meta page at the wiki root
+$SKILL_ROOT/scripts/awiki read WIKI.md
+
+# Write content to a wiki page (safe: refuses to overwrite by default)
+echo "content" | $SKILL_ROOT/scripts/awiki write pages/new-page.md
+
+# Force overwrite an existing page
+echo "new content" | $SKILL_ROOT/scripts/awiki write pages/existing.md --force
+
+# Append to an existing file
+echo "more content" | $SKILL_ROOT/scripts/awiki write pages/existing.md --append
+
+# Preview without writing
+echo "preview" | $SKILL_ROOT/scripts/awiki write pages/draft.md --dry-run
+```
+
+All paths are relative to the wiki root. Parent directories are created
+automatically when writing unless `--no-create-dirs` is passed. Paths that
+escape the wiki root (e.g. `../../etc/passwd`) are rejected.
+
 ## Conventions
 
 ### Quality standards

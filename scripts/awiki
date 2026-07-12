@@ -66,6 +66,44 @@ def _collect_wiki_files(root: Path) -> list[Path]:
     return files
 
 
+def _read_file(
+    path: Path,
+    display_path: str,
+    offset: int,
+    limit: int,
+    show_line_numbers: bool,
+    file_label: str | None = None,
+) -> list[str] | None:
+    """Read a single file and return formatted output lines, or None on error."""
+    try:
+        text = path.read_text("utf-8")
+    except UnicodeDecodeError:
+        click.echo(f"error: {display_path}: cannot read binary file", err=True)
+        return None
+    except FileNotFoundError:
+        click.echo(f"error: {display_path}: file not found", err=True)
+        return None
+    except IsADirectoryError:
+        click.echo(f"error: {display_path}: is a directory, not a file", err=True)
+        return None
+    except PermissionError:
+        click.echo(f"error: {display_path}: permission denied", err=True)
+        return None
+
+    lines = text.splitlines()
+    selected = lines[offset - 1 : offset - 1 + limit]
+
+    output: list[str] = []
+    if file_label is not None:
+        output.append(f"### FILE: {file_label}")
+    for i, line in enumerate(selected):
+        if show_line_numbers:
+            output.append(f"{offset + i}: {line}")
+        else:
+            output.append(line)
+    return output
+
+
 def _skip_code(line: str) -> str:
     return re.sub(r"`[^`]*`", "", line)
 
@@ -588,6 +626,103 @@ def catalog(sort_by: str, as_json: bool) -> None:
         return
 
     click.echo(_catalog_markdown(pages))
+
+
+@cli.command(name="read")
+@click.argument("paths", nargs=-1, required=True)
+@click.option("--offset", type=click.IntRange(min=1), default=1, help="Start reading at this line (1-indexed)")
+@click.option("--limit", type=int, default=2000, help="Maximum lines to read")
+@click.option("--no-limit", is_flag=True, help="Read the entire file (ignore --limit)")
+@click.option("--no-line-numbers", is_flag=True, help="Omit line number prefixes")
+def read_cmd(paths, offset, limit, no_limit, no_line_numbers):
+    """Read one or more wiki files (paths relative to the wiki root)."""
+    root = WIKI_ROOT
+    if not root.is_dir():
+        click.echo(f"error: wiki directory not found at {root}", err=True)
+        sys.exit(1)
+
+    line_numbers = not no_line_numbers
+    effective_limit = sys.maxsize if no_limit else limit
+    root_prefix = str(root.resolve())
+    failed = False
+
+    for path in paths:
+        resolved = (root / path).resolve()
+        if not str(resolved).startswith(root_prefix):
+            click.echo(f"error: {path}: path is outside wiki root", err=True)
+            failed = True
+            continue
+
+        output = _read_file(
+            path=resolved,
+            display_path=path,
+            offset=offset,
+            limit=effective_limit,
+            show_line_numbers=line_numbers,
+            file_label=path if len(paths) > 1 else None,
+        )
+        if output is None:
+            failed = True
+            continue
+        for line in output:
+            click.echo(line)
+
+    if failed:
+        sys.exit(1)
+
+
+@cli.command()
+@click.argument("path")
+@click.option("--force", is_flag=True, help="Overwrite existing file")
+@click.option("--append", is_flag=True, help="Append to existing file instead of overwriting")
+@click.option("--no-create-dirs", is_flag=True, help="Do not create parent directories")
+@click.option("--dry-run", is_flag=True, help="Print content to stdout instead of writing to file")
+def write(path, force, append, no_create_dirs, dry_run):
+    """Write stdin to a wiki file (path relative to the wiki root)."""
+    root = WIKI_ROOT
+    if not root.is_dir():
+        click.echo(f"error: wiki directory not found at {root}", err=True)
+        sys.exit(1)
+
+    dest = (root / path).resolve()
+    if not str(dest).startswith(str(root.resolve())):
+        click.echo(f"error: {path}: path is outside wiki root", err=True)
+        sys.exit(1)
+
+    content = sys.stdin.buffer.read()
+
+    if dry_run:
+        click.echo(content.decode("utf-8", errors="replace"), nl=False)
+        return
+
+    if dest.exists() and not force and not append:
+        click.echo(
+            f"error: {path}: file exists (use --force to overwrite or --append to append)",
+            err=True,
+        )
+        sys.exit(1)
+
+    if not no_create_dirs:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+
+    mode = "ab" if append else "wb"
+    try:
+        with dest.open(mode) as f:
+            f.write(content)
+    except PermissionError:
+        click.echo(f"error: {path}: permission denied", err=True)
+        sys.exit(1)
+    except FileNotFoundError:
+        click.echo(
+            f"error: {path}: cannot create file (parent directory does not exist)",
+            err=True,
+        )
+        sys.exit(1)
+    except IsADirectoryError:
+        click.echo(f"error: {path}: is a directory", err=True)
+        sys.exit(1)
+
+    click.echo(f"Wrote {len(content)} bytes to {path}", err=True)
 
 
 @cli.command()
