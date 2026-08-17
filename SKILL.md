@@ -351,8 +351,35 @@ Record to the log with `awiki log` as described above.
 
 #### Step 1: Run the linter
 
-Run `awiki lint` to detect issues.
+Run `awiki lint` to detect issues.  It checks:
+
+- **Broken links** — any internal markdown link (`[text](target)`) whose
+  target does not resolve to an existing file or directory.  Relative
+  targets are tried root-relative first, then page-relative; `http(s)://`,
+  `mailto:`, `//` and `#anchor` links are ignored.
+- **Wikilink syntax** — `[[double-bracket]]` links, which should be plain
+  markdown links instead.
+- **Frontmatter** — missing or invalid YAML frontmatter, missing
+  `title`/`summary`/`created`/`updated`, summaries over 160 characters, and
+  non-ISO dates.
+
+Each issue is printed as `path:line: description`.  The command exits
+non-zero if any issue was found, and prints `No issues found.` (exit zero)
+when clean.
 
 #### Step 2: Correct the issues
 
-Fix whatever issues are resolved.  Confer with the user if there is any ambiguity.
+Fix each issue the linter reports.  For a broken link, find the correct page
+path (the page may have been renamed) or the right `raw/` target.  Confer
+with the user if a fix is ambiguous.
+
+#### Step 3: Manual review
+
+The linter cannot catch everything.  Periodically (or when asked) also review:
+
+- **Contradictions** — search for `[CONTRADICTION]` markers or flagged claims
+  from the ingestion workflow; resolve or re-flag if the dispute still stands.
+- **Stale claims** — pages whose `updated` date is older than 3 months may be
+  outdated; re-research and refresh, or mark the claim.
+- **Missing cross-references** — when a page mentions a topic that has its
+  own page, add a back-link.

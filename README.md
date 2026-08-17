@@ -110,7 +110,7 @@ When asked a question, the agent:
 ### Lint
 
 Periodic health checks:
-- `awiki lint` — broken links, orphan pages, missing frontmatter
+- `awiki lint` — broken links, non-standard wikilink syntax, missing frontmatter
 - Manual review — contradictions, stale claims (>3 months), missing cross-references
 
 ## Directory Layout

@@ -36,6 +36,12 @@ MDLINK_RE = re.compile(r"\[([^\]]*)\]\(([^)]*)\)")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 MD_LINK_RE = re.compile(r'href="([^"]+?)\.md(#?)"')
 
+_URI_SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*:")
+
+
+def _is_external_link(url: str) -> bool:
+    return bool(_URI_SCHEME_RE.match(url)) or url.startswith("//") or url.startswith("#")
+
 SKILL_ROOT = Path(__file__).parent.parent
 _TEMPLATES_DIR = SKILL_ROOT / "scripts" / "awiki-templates"
 _TEMPLATE_FILE = _TEMPLATES_DIR / "base.html"
@@ -113,19 +119,23 @@ def _is_fence(line: str) -> bool:
 
 
 
-def _resolve_mdlink(url: str, root: Path) -> Optional[Path]:
-    if url.startswith(("http://", "https://", "#")):
-        return None
+def _resolve_link(url: str, page: Path, root: Path) -> Optional[Path]:
+    """Resolve an internal markdown link target to an existing path, or None.
+
+    Resolution order: root-relative, then page-relative.  Extension-less
+    targets get a `.md` fallback on both bases.  The URL fragment (`#...`) is
+    stripped before resolving.  Returns None when nothing resolves.
+    """
     path_part = url.split("#")[0]
-    if path_part.endswith("/"):
+    if path_part == "":
         return None
-    ext = Path(path_part).suffix
-    if ext and ext != ".md":
-        return None
-    if not ext:
-        path_part += ".md"
-    resolved = root / path_part
-    return resolved if resolved.exists() else None
+    candidates = [root / path_part, page.parent / path_part]
+    if not Path(path_part).suffix:
+        candidates.extend([root / (path_part + ".md"), page.parent / (path_part + ".md")])
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
 
 
 def _parse_frontmatter(text: str) -> tuple[Optional[dict[str, object]], bool]:
@@ -214,6 +224,30 @@ def check_wikilinks(files: list[Path], root: Path) -> list[str]:
                 issues.append(f"{rel}:{i}: [[{target}]] — use markdown links")
     return issues
 
+
+
+def check_mdlinks(files: list[Path], root: Path) -> list[str]:
+    issues: list[str] = []
+    for f in files:
+        text = f.read_text("utf-8")
+        lines = text.split("\n")
+        in_fence = False
+        for i, raw_line in enumerate(lines, 1):
+            stripped = raw_line.strip()
+            if _is_fence(stripped):
+                in_fence = not in_fence
+                continue
+            if in_fence:
+                continue
+            cleaned = _skip_code(raw_line)
+            for m in MDLINK_RE.finditer(cleaned):
+                url = m.group(2)
+                if _is_external_link(url):
+                    continue
+                if _resolve_link(url, f, root) is None:
+                    rel = f.relative_to(root)
+                    issues.append(f"{rel}:{i}: broken link: {url}")
+    return issues
 
 
 def check_frontmatter(files: list[Path], root: Path) -> list[str]:
@@ -348,7 +382,7 @@ def _embed(texts: list[str]) -> list[list[float]] | None:
         return ollama.embed(model=EMBED_MODEL, input=texts, truncate=True)["embeddings"]
     except Exception:
         _OLLAMA_FAILED = True
-        return Non
+        return None
 
 
 def _index_wiki(root: Path) -> tuple[int, int]:
@@ -506,19 +540,24 @@ def lint():
 
     files = _collect_wiki_files(root)
 
+    mdlink_issues = check_mdlinks(files, root)
     wikilink_issues = check_wikilinks(files, root)
     frontmatter_issues = check_frontmatter(files, root)
 
-    if not (wikilink_issues or frontmatter_issues):
+    if not (mdlink_issues or wikilink_issues or frontmatter_issues):
         click.echo("No issues found.")
         return
 
+    for issue in mdlink_issues:
+        click.echo(issue)
     for issue in wikilink_issues:
         click.echo(issue)
     for issue in frontmatter_issues:
         click.echo(issue)
 
     parts = []
+    if mdlink_issues:
+        parts.append(f"{len(mdlink_issues)} broken links")
     if wikilink_issues:
         parts.append(f"{len(wikilink_issues)} wikilinks")
     if frontmatter_issues:
